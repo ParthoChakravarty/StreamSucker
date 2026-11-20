@@ -3,3 +3,6 @@
 
 # Executables and build output
 /build/
+
+#Video output
+/Videos/
