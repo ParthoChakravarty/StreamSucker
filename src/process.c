@@ -11,6 +11,7 @@
  * See <https://www.gnu.org/licenses/>.
  */
  
+
 #define _POSIX_C_SOURCE 200809L
 
 #include "process.h"
@@ -87,7 +88,6 @@ int run_process(char *const argv[])
     if (pid == 0)
     {
         execvp(argv[0], argv);
-
         perror("execvp");
         _exit(127);
     }
@@ -111,3 +111,124 @@ int run_process(char *const argv[])
 
     return -1;
 }
+
+int run_process_capture(
+    char *const argv[],
+    char *output,
+    size_t output_size
+)
+{
+    if (argv == NULL || argv[0] == NULL ||
+        output == NULL || output_size == 0)
+        return -1;
+
+    output[0] = '\0';
+
+    int pipefd[2];
+
+    if (pipe(pipefd) < 0)
+    {
+        perror("pipe");
+        return -1;
+    }
+
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        perror("fork");
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    if (pid == 0)
+    {
+        close(pipefd[0]);
+
+        if (dup2(pipefd[1], STDOUT_FILENO) < 0)
+        {
+            perror("dup2");
+            _exit(127);
+        }
+
+        close(pipefd[1]);
+
+        execvp(argv[0], argv);
+
+        perror("execvp");
+        _exit(127);
+    }
+
+    close(pipefd[1]);
+
+    size_t total = 0;
+    int read_error = 0;
+
+    while (1)
+    {
+        char buffer[512];
+
+        ssize_t bytes = read(
+            pipefd[0],
+            buffer,
+            sizeof(buffer)
+        );
+
+        if (bytes > 0)
+        {
+            size_t available = output_size - total - 1;
+            size_t copy_size = (size_t)bytes;
+
+            if (copy_size > available)
+            {
+                copy_size = available;
+                read_error = 1;
+            }
+
+            if (copy_size > 0)
+            {
+                memcpy(output + total, buffer, copy_size);
+                total += copy_size;
+                output[total] = '\0';
+            }
+
+            continue;
+        }
+
+        if (bytes == 0)
+            break;
+
+        if (errno == EINTR)
+            continue;
+
+        perror("read");
+        read_error = 1;
+        break;
+    }
+
+    close(pipefd[0]);
+
+    int status;
+
+    while (waitpid(pid, &status, 0) < 0)
+    {
+        if (errno == EINTR)
+            continue;
+
+        perror("waitpid");
+        return -1;
+    }
+
+    if (read_error)
+        return -1;
+
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+
+    if (WIFSIGNALED(status))
+        return 128 + WTERMSIG(status);
+
+    return -1;
+}
+

@@ -15,9 +15,17 @@
 #define PROCESS_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 bool executable_exists(const char *program);
+
 int run_process(char *const argv[]);
+
+int run_process_capture(
+  char *const argv[],
+  char *output,
+  size_t output_size
+);
 
 #endif
 

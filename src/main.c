@@ -11,6 +11,7 @@
  * See <https://www.gnu.org/licenses/>.
  */
  
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,7 +21,7 @@
 #include "frames.h"
 #include "process.h"
 
-#define VERSION "0.2.0"
+#define VERSION "0.3.0"
 #define INPUT_SIZE 8192
 
 static void print_banner(void)
@@ -118,23 +119,8 @@ static void process_url(void)
             break;
 
         case 2:
-        {
-            char start[64];
-            char end[64];
-
-            if (!read_line(
-                    "Start time (HH:MM:SS): ",
-                    start, sizeof(start)))
-                break;
-
-            if (!read_line(
-                    "End time   (HH:MM:SS): ",
-                    end, sizeof(end)))
-                break;
-
-            extractor_stage1(url, start, end);
+            extractor_stage3(url);
             break;
-        }
 
         case 3:
             frames_stage1(url);
