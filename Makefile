@@ -11,7 +11,7 @@
 
 CC = gcc
 
-TARGET = build/stream-sucker
+TARGET = build/streamsucker
 
 SRC_DIR = src
 INC_DIR = include
