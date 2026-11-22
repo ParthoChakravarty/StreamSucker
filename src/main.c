@@ -24,6 +24,13 @@
 #define VERSION "0.3.0"
 #define INPUT_SIZE 8192
 
+/*
+ * Special return values of read_choice().
+ * Valid menu choices are always >= 0.
+ */
+#define CHOICE_INVALID (-1)
+#define CHOICE_EOF     (-2)
+
 static void print_banner(void)
 {
     printf("\n");
@@ -42,6 +49,19 @@ static void print_dependencies(void)
 
     printf("ffmpeg : %s\n",
         executable_exists("ffmpeg") ? "Available" : "Not found");
+}
+
+/*
+ * True once stdin has reached end-of-file (e.g. Ctrl+D) or failed.
+ */
+static int stdin_closed(void)
+{
+    return feof(stdin) || ferror(stdin);
+}
+
+static void print_goodbye(void)
+{
+    printf("\nThank you for using StreamSucker!\n");
 }
 
 static int read_line(
@@ -79,10 +99,10 @@ static int read_choice(void)
     int choice;
 
     if (!read_line("\nEnter choice: ", buffer, sizeof(buffer)))
-        return -1;
+        return CHOICE_EOF;
 
-    if (sscanf(buffer, "%d %c", &choice, &extra) != 1)
-        return -1;
+    if (sscanf(buffer, "%d %c", &choice, &extra) != 1 || choice < 0)
+        return CHOICE_INVALID;
 
     return choice;
 }
@@ -127,6 +147,7 @@ static void process_url(void)
             break;
 
         case 0:
+        case CHOICE_EOF:
             break;
 
         default:
@@ -154,14 +175,25 @@ int main(void)
                 break;
 
             case 2:
-                printf("\nThank you for using StreamSucker!\n");
+            case CHOICE_EOF:
+                print_goodbye();
                 return EXIT_SUCCESS;
 
             default:
-                if (choice == -1)
+                if (choice == CHOICE_INVALID)
                     printf("\nInvalid input.\n");
                 else
                     printf("\nInvalid option.\n");
+        }
+
+        /*
+         * If any prompt hit end-of-input (Ctrl+D or a closed pipe),
+         * there is nothing left to read: quit instead of looping.
+         */
+        if (stdin_closed())
+        {
+            print_goodbye();
+            return EXIT_SUCCESS;
         }
 
         printf("\nPress Enter to continue...");
@@ -170,6 +202,12 @@ int main(void)
 
         while ((ch = getchar()) != '\n' && ch != EOF)
             ;
+
+        if (ch == EOF)
+        {
+            print_goodbye();
+            return EXIT_SUCCESS;
+        }
     }
 
     return EXIT_SUCCESS;

@@ -145,6 +145,71 @@ static int create_directories(const char *path)
     return 1;
 }
 
+/*
+ * Resolve the default output directory: ~/Videos/StreamSucker
+ */
+static int get_default_directory(
+    char *buffer,
+    size_t size
+)
+{
+    const char *home = getenv("HOME");
+
+    if (home == NULL || home[0] == '\0')
+    {
+        fprintf(stderr, "Cannot determine home directory.\n");
+        return 0;
+    }
+
+    int length = snprintf(
+        buffer,
+        size,
+        "%s/Videos/StreamSucker",
+        home
+    );
+
+    if (length < 0 || (size_t)length >= size)
+    {
+        fprintf(stderr, "Output directory path is too long.\n");
+        return 0;
+    }
+
+    return 1;
+}
+
+/*
+ * Expand a leading ~ in a custom output directory.
+ */
+static int resolve_directory(
+    const char *input,
+    char *output,
+    size_t size
+)
+{
+    const char *home = getenv("HOME");
+
+    if (input[0] == '~' &&
+        (input[1] == '/' || input[1] == '\0'))
+    {
+        if (home == NULL || home[0] == '\0')
+            return 0;
+
+        int length = snprintf(
+            output,
+            size,
+            "%s%s",
+            home,
+            input + 1
+        );
+
+        return length >= 0 && (size_t)length < size;
+    }
+
+    int length = snprintf(output, size, "%s", input);
+
+    return length >= 0 && (size_t)length < size;
+}
+
 static const char *get_quality_selector(VideoQuality quality)
 {
     switch (quality)
@@ -240,21 +305,36 @@ void downloader_stage2(const char *url)
         return;
     }
 
-    char output_directory[PATH_SIZE];
+    char default_directory[PATH_SIZE];
 
-    printf("\nDefault output directory: Videos/StreamSucker\n");
+    if (!get_default_directory(default_directory, sizeof(default_directory)))
+        return;
+
+    printf("\nDefault output directory: %s\n", default_directory);
+
+    char custom_directory[PATH_SIZE];
 
     if (!read_input(
             "Output directory (press Enter for default): ",
-            output_directory,
-            sizeof(output_directory)))
+            custom_directory,
+            sizeof(custom_directory)))
     {
         return;
     }
 
-    if (output_directory[0] == '\0')
+    char output_directory[PATH_SIZE];
+
+    if (custom_directory[0] == '\0')
     {
-        strcpy(output_directory, "Videos/StreamSucker");
+        strcpy(output_directory, default_directory);
+    }
+    else if (!resolve_directory(
+                 custom_directory,
+                 output_directory,
+                 sizeof(output_directory)))
+    {
+        fprintf(stderr, "\nInvalid output directory.\n");
+        return;
     }
 
     if (!create_directories(output_directory))
